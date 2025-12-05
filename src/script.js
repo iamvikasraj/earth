@@ -11,11 +11,22 @@ const canvas = document.querySelector('canvas.webgl')
 
 // Scene
 const scene = new THREE.Scene()
+scene.background = new THREE.Color(0x000000); // Pure black space background
 
-
-// Hemisphere Light
-const hemisphereLight = new THREE.HemisphereLight(0xffffff, 0x404040, 0.5); // Parameters: sky color, ground color, intensity
+// Enhanced Lighting Setup
+// Hemisphere Light - provides ambient sky and ground lighting
+const hemisphereLight = new THREE.HemisphereLight(0x87ceeb, 0x1a1a2e, 0.6); // Sky blue, dark blue ground
 scene.add(hemisphereLight);
+
+// Directional Light - represents the Sun
+const directionalLight = new THREE.DirectionalLight(0xffffff, 1.5);
+directionalLight.position.set(5, 3, 5);
+directionalLight.castShadow = false; // Can enable shadows if needed
+scene.add(directionalLight);
+
+// Ambient Light - provides base illumination
+const ambientLight = new THREE.AmbientLight(0x404040, 0.3);
+scene.add(ambientLight);
 /**
  * Textures
  */
@@ -67,8 +78,8 @@ colorTexture.wrapT = THREE.MirroredRepeatWrapping
 colorTexture.center.x = 0
 colorTexture.center.y = 0
 colorTexture.generateMipmaps = true
-colorTexture.minFilter = THREE.NearestFilter
-colorTexture.magFilter = THREE.NearestFilter
+colorTexture.minFilter = THREE.LinearMipmapLinearFilter
+colorTexture.magFilter = THREE.LinearFilter
 
 const alphaTexture = textureLoader.load('/textures/checkboard-8x8.png')
 const heightTexture = textureLoader.load('/textures/door/height.jpg')
@@ -78,16 +89,21 @@ const metalnessTexture = textureLoader.load('/textures/door/metalness.jpg')
 const roughnessTexture = textureLoader.load('/textures/door/roughness.jpg')
 
 /**
- * Object
+ * Earth Object
  */
 const geometry = new THREE.SphereGeometry(1, 64, 64)
 console.log(geometry.attributes)
-const material = new THREE.MeshBasicMaterial({ map: colorTexture })
+
+// Enhanced Material - MeshStandardMaterial for realistic lighting
+const material = new THREE.MeshStandardMaterial({ 
+    map: colorTexture,
+    roughness: 0.8,
+    metalness: 0.1,
+    // Optional: Add normal map for surface detail if available
+    // normalMap: normalTexture,
+})
 const mesh = new THREE.Mesh(geometry, material)
 scene.add(mesh)
-
-
-
 
 
 /**
@@ -140,42 +156,27 @@ controls.maxDistance = 20; // Maximum zoom distance
 
 
 
-const snowflakeGeometry = new THREE.BufferGeometry();
-const snowflakeVertices = [];
-
-// Generate 5000 snowflakes with smoother distribution
-for (let i = 0; i < 4000; i++) {
-    // Randomly position each snowflake within a larger range
-    const x = (Math.random() - 0.5) * 80;
-    const y = (Math.random() - 0.5) * 80;
-    const z = (Math.random() - 0.5) * 80;
-
-    // Add the coordinates to the array
-    snowflakeVertices.push(x, y, z);
-}
-
-snowflakeGeometry.setAttribute('position', new THREE.Float32BufferAttribute(snowflakeVertices, 3));
-
-// Create a PointsMaterial with emission shader
-const snowflakeMaterial = new THREE.PointsMaterial({
-    color: 0xffffff,
-    size: 0.01312,
-    emissive: 0x00ff00, // Set the emissive color (green in this case)
-    emissiveIntensity: 0.01, // Adjust the intensity of the emission
-});
-
-const snowflakes = new THREE.Points(snowflakeGeometry, snowflakeMaterial);
-scene.add(snowflakes);
-
-
-
 const gui = new dat.GUI();
-gui.add(controls, 'autoRotate'); // Add autoRotate control to GUI
-gui.add(controls, 'enableZoom'); // Add enableZoom control to GUI
+gui.add(controls, 'autoRotate').name('Auto Rotate'); // Add autoRotate control to GUI
+gui.add(controls, 'enableZoom').name('Enable Zoom'); // Add enableZoom control to GUI
 gui.add(mesh.material, 'wireframe').name('Wireframe');
-gui.add(controls, 'autoRotateSpeed', 0, 10).step(1);
+gui.add(controls, 'autoRotateSpeed', 0, 10).step(0.1).name('Rotation Speed');
 
+// Lighting controls
+const lightingFolder = gui.addFolder('Lighting');
+lightingFolder.add(hemisphereLight, 'intensity', 0, 2).step(0.1).name('Hemisphere Intensity');
+lightingFolder.add(directionalLight, 'intensity', 0, 3).step(0.1).name('Sun Intensity');
+lightingFolder.add(ambientLight, 'intensity', 0, 1).step(0.1).name('Ambient Intensity');
 
+// Material controls
+const materialFolder = gui.addFolder('Material');
+materialFolder.add(mesh.material, 'roughness', 0, 1).step(0.1).name('Roughness');
+materialFolder.add(mesh.material, 'metalness', 0, 1).step(0.1).name('Metalness');
+
+// Rotation controls
+const rotationParams = { speedMultiplier: 0.0 }; // Default: no rotation
+const rotationFolder = gui.addFolder('Rotation');
+rotationFolder.add(rotationParams, 'speedMultiplier', 0, 5).step(0.1).name('Speed Multiplier');
 
 /**
  * Renderer
@@ -185,6 +186,8 @@ const renderer = new THREE.WebGLRenderer({
 })
 renderer.setSize(sizes.width, sizes.height)
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
+renderer.toneMapping = THREE.ACESFilmicToneMapping
+renderer.toneMappingExposure = 1.2
 
 
 
@@ -193,30 +196,24 @@ renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
  */
 const clock = new THREE.Clock()
 
+// Realistic Earth rotation settings
+// Real Earth: 1 rotation per 24 hours (86400 seconds) = 2π radians per 86400 seconds
+const EARTH_ROTATION_PERIOD = 86400; // seconds for one full rotation (24 hours)
+const EARTH_ROTATION_SPEED = (2 * Math.PI) / EARTH_ROTATION_PERIOD; // radians per second
+
 const tick = () => {
     const elapsedTime = clock.getElapsedTime()
 
     // Update controls
     controls.update()
 
-    // Rotate the mesh
-    mesh.rotation.y = elapsedTime * Math.PI / 400  // Adjust the rotation speed by changing the multiplier
-    // mesh.rotation.y = elapsedTime * Math.PI / 1
-    // mesh.rotation.z = elapsedTime * Math.PI / 1  // Adjust the rotation speed by changing the multiplier
-
-    // // Rotate the texture
-    // colorTexture.rotation = elapsedTime * 0.25  // Adjust the rotation speed by changing the multiplier
-    // Update snowflakes position to create the snowfall effect
-    // const snowflakePositions = snowflakeGeometry.attributes.position.array;
-
-    // for (let i = 1; i < snowflakePositions.length; i += 3) {
-    //     snowflakePositions[i] -= 0.03; // Adjust the falling speed
-    //     if (snowflakePositions[i] < -5) {
-    //         snowflakePositions[i] = 10;
-    //     }
-    // }
-
-    // snowflakeGeometry.attributes.position.needsUpdate = true;
+    // Realistic Earth rotation (west to east, counter-clockwise when viewed from North Pole)
+    // Rotates around Y-axis (vertical axis) at realistic speed
+    mesh.rotation.y = elapsedTime * EARTH_ROTATION_SPEED * rotationParams.speedMultiplier
+    
+    // Optional: Rotate the sun light position for day/night cycle effect
+    // directionalLight.position.x = Math.cos(elapsedTime * 0.1) * 5
+    // directionalLight.position.z = Math.sin(elapsedTime * 0.1) * 5
 
 
     // Render
