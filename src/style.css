@@ -56,5 +56,117 @@ h1 {
     top: 0;
     left: 0;
     outline: none;
+}
 
+/* Modern Minimalist GUI Styling */
+.lil-gui {
+    --background-color: rgba(18, 18, 23, 0.9);
+    --text-color: rgba(255, 255, 255, 0.95);
+    --title-background-color: rgba(25, 25, 32, 0.95);
+    --widget-color: rgba(255, 255, 255, 0.08);
+    --hover-color: rgba(255, 255, 255, 0.12);
+    --focus-color: rgba(100, 150, 255, 0.4);
+    --number-color: rgba(100, 200, 255, 0.9);
+    --string-color: rgba(150, 255, 150, 0.9);
+    --font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
+    --font-size: 12px;
+    --spacing: 6px;
+    --widget-height: 22px;
+    --border-radius: 6px;
+    --padding: 10px;
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
+}
+
+.lil-gui .title {
+    background: var(--title-background-color);
+    padding: 8px var(--padding);
+    font-weight: 500;
+    font-size: 11px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    opacity: 0.8;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.lil-gui .controller {
+    padding: 5px var(--padding);
+    transition: background-color 0.15s ease;
+}
+
+.lil-gui .controller:hover {
+    background-color: var(--hover-color);
+}
+
+.lil-gui input[type="text"],
+.lil-gui input[type="number"],
+.lil-gui select {
+    background: var(--widget-color);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 6px;
+    color: var(--text-color);
+    padding: 4px 8px;
+    transition: all 0.2s ease;
+}
+
+.lil-gui input[type="text"]:focus,
+.lil-gui input[type="number"]:focus,
+.lil-gui select:focus {
+    outline: none;
+    border-color: var(--focus-color);
+    background: rgba(255, 255, 255, 0.15);
+    box-shadow: 0 0 0 2px var(--focus-color);
+}
+
+.lil-gui input[type="range"] {
+    accent-color: var(--number-color);
+}
+
+.lil-gui .controller input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    accent-color: var(--number-color);
+    cursor: pointer;
+}
+
+.lil-gui .controller label {
+    color: var(--text-color);
+    font-weight: 500;
+    user-select: none;
+}
+
+.lil-gui .controller .widget {
+    border-radius: 6px;
+}
+
+.lil-gui .folder {
+    border-left: 2px solid transparent;
+    transition: border-color 0.2s ease;
+}
+
+.lil-gui .folder:hover {
+    border-left-color: var(--focus-color);
+}
+
+.lil-gui .folder .title {
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 11px;
+    letter-spacing: 1px;
+    opacity: 0.8;
+}
+
+.lil-gui .folder.closed .title::before {
+    content: '▶';
+    margin-right: 6px;
+    font-size: 10px;
+    opacity: 0.6;
+}
+
+.lil-gui .folder:not(.closed) .title::before {
+    content: '▼';
+    margin-right: 6px;
+    font-size: 10px;
+    opacity: 0.6;
 }
