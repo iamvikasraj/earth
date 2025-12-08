@@ -383,7 +383,7 @@ const cameraPresets = {
  */
 const controls = new OrbitControls(camera, canvas)
 controls.enableDamping = true
-controls.minDistance = 1.10 // Minimum zoom (closest to Earth)
+controls.minDistance = 4 // Minimum zoom (closest to Earth)
 controls.maxDistance = 20 // Maximum zoom (farthest from Earth)
 controls.target.set(0, 0, 0)
 
