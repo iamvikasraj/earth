@@ -10,14 +10,15 @@ const scene = new THREE.Scene()
 /**
  * Lighting
  */
-const hemisphereLight = new THREE.HemisphereLight(0x87ceeb, 0x1a1a2e, 0.8)
+const hemisphereLight = new THREE.HemisphereLight(0x87ceeb, 0x1a1a2e, 1.0)
 scene.add(hemisphereLight)
 
-const directionalLight = new THREE.DirectionalLight(0xffffff, 2.0)
+const directionalLight = new THREE.DirectionalLight(0xffffff, 2.5)
 directionalLight.position.set(10, 0, 0)
 scene.add(directionalLight)
 
-const ambientLight = new THREE.AmbientLight(0x404040, 0.4)
+// Increased ambient light for better visibility of dark side
+const ambientLight = new THREE.AmbientLight(0x404040, 0.6)
 scene.add(ambientLight)
 
 /**
@@ -716,9 +717,12 @@ const tick = () => {
     controls.update()
     
     // Sun rotation (simple orbit)
-    const sunAngle = adjustedTime * EARTH_ROTATION_SPEED
+    // Position sun to better illuminate Earth from the camera's perspective
+    // Adjust angle to show Earth's day side more prominently
+    const sunAngle = adjustedTime * EARTH_ROTATION_SPEED + Math.PI * 0.25 // Offset for better default view
     directionalLight.position.x = Math.cos(sunAngle) * 10
     directionalLight.position.z = Math.sin(sunAngle) * 10
+    directionalLight.position.y = 2 // Slight elevation for better lighting angle
     
     renderer.render(scene, camera)
     
