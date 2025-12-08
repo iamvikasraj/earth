@@ -373,17 +373,14 @@ const cameraPresets = {
         animateCamera(targetPos, lookAtPoint)
     },
     moonFacingEarth: () => {
-        // Camera positioned above Moon, looking at Earth while keeping Moon's horizon visible
+        // Camera positioned on Moon's surface looking at Earth
         const moonPos = moon.position.clone()
         const earthPos = new THREE.Vector3(0, 0, 0)
-        const direction = earthPos.clone().sub(moonPos).normalize()
-        // Position camera above Moon (elevated) and slightly offset to see both planets
-        const cameraOffset = direction.multiplyScalar(-3) // Behind Moon
-        cameraOffset.y += 1 // Elevate camera to see horizon and Earth
-        const targetPos = moonPos.clone().add(cameraOffset)
-        // Look at a point between Moon and Earth to see both
-        const lookAtPoint = moonPos.clone().add(earthPos).multiplyScalar(0.3)
-        animateCamera(targetPos, lookAtPoint)
+        const directionToEarth = earthPos.clone().sub(moonPos).normalize()
+        // Position camera on Moon's surface (just above it)
+        const baseDistance = MOON_DISTANCE - MOON_RADIUS - 0.1
+        const targetPos = earthPos.clone().add(directionToEarth.multiplyScalar(-baseDistance))
+        animateCamera(targetPos, earthPos)
     },
     free: () => {
         // Reset to default view - showing half Earth diameter (side view)
@@ -410,8 +407,7 @@ controls.touches = {
 }
 
 // Enhanced touch controls
-// Disable pan and rotate since camera is locked to Moon's surface
-// Zoom (dolly) is still enabled to allow zooming in/out
+// Set initial state based on default camera mode (moonFacingEarth)
 controls.enablePan = false
 controls.enableZoom = true
 controls.enableRotate = false
@@ -439,18 +435,27 @@ controls.update()
 /**
  * Camera Switching
  */
-let currentCameraMode = 'free' // 'free', 'earthFacingMoon', 'moonFacingEarth'
+let currentCameraMode = 'moonFacingEarth' // 'free', 'earthFacingMoon', 'moonFacingEarth'
 
 // Keyboard controls for camera switching, time speed, and Earth rotation
 window.addEventListener('keydown', (event) => {
     if (event.key === '1') {
         currentCameraMode = 'earthFacingMoon'
+        controls.enablePan = true
+        controls.enableRotate = true
+        controls.enableZoom = true
         cameraPresets.earthFacingMoon()
     } else if (event.key === '2') {
         currentCameraMode = 'moonFacingEarth'
+        controls.enablePan = false
+        controls.enableRotate = false
+        controls.enableZoom = true // Allow zoom only
         cameraPresets.moonFacingEarth()
     } else if (event.key === '0') {
         currentCameraMode = 'free'
+        controls.enablePan = true
+        controls.enableRotate = true
+        controls.enableZoom = true
         cameraPresets.free()
     } else if (event.key === '+' || event.key === '=') {
         timeSpeedMultiplier = Math.min(timeSpeedMultiplier * 1.5, 100)
@@ -608,44 +613,61 @@ const tick = () => {
     // Moon's orbit is slightly inclined (~5 degrees), but we'll keep it simple
     moon.position.y = Math.sin(moonOrbitAngle * 0.5) * 2 // Slight vertical variation
     
-    // Smooth camera positioning on Moon's surface looking at Earth
+    // Apply camera mode-specific positioning
     if (!cameraAnimation.isAnimating) {
-        const moonPos = moon.position.clone()
-        const earthPos = new THREE.Vector3(0, 0, 0)
-        
-        // Calculate direction from Moon to Earth
-        const moonToEarth = earthPos.clone().sub(moonPos)
-        const distanceMoonToEarth = moonToEarth.length()
-        
-        // Only proceed if Moon position is valid
-        if (distanceMoonToEarth > 0.1 && !isNaN(distanceMoonToEarth)) {
-            const directionToEarth = moonToEarth.normalize()
+        if (currentCameraMode === 'moonFacingEarth') {
+            // Mode 2: Camera on Moon's surface looking at Earth
+            const moonPos = moon.position.clone()
+            const earthPos = new THREE.Vector3(0, 0, 0)
             
-            // Set controls target to Earth (smoothly)
-            controls.target.lerp(earthPos, 0.1)
+            // Calculate direction from Moon to Earth
+            const moonToEarth = earthPos.clone().sub(moonPos)
+            const distanceMoonToEarth = moonToEarth.length()
             
-            // Base distance from Earth to Moon surface (camera sits just above Moon's surface)
-            const baseDistance = MOON_DISTANCE - MOON_RADIUS - 0.1
-            
-            // Get current distance for zoom (preserve user zoom input)
-            let currentDistance = camera.position.distanceTo(controls.target)
-            if (currentDistance < 1 || currentDistance > 50 || isNaN(currentDistance)) {
-                // If distance is invalid, reset to base
-                currentDistance = baseDistance
+            // Only proceed if Moon position is valid
+            if (distanceMoonToEarth > 0.1 && !isNaN(distanceMoonToEarth)) {
+                const directionToEarth = moonToEarth.normalize()
+                
+                // Set controls target to Earth (smoothly)
+                controls.target.lerp(earthPos, 0.1)
+                
+                // Base distance from Earth to Moon surface (camera sits just above Moon's surface)
+                const baseDistance = MOON_DISTANCE - MOON_RADIUS - 0.1
+                
+                // Get current distance for zoom (preserve user zoom input)
+                let currentDistance = camera.position.distanceTo(controls.target)
+                if (currentDistance < 1 || currentDistance > 50 || isNaN(currentDistance)) {
+                    // If distance is invalid, reset to base
+                    currentDistance = baseDistance
+                }
+                
+                // Clamp zoom distance to reasonable range (50% to 200% of base distance)
+                const zoomDistance = Math.max(baseDistance * 0.5, Math.min(baseDistance * 2.0, currentDistance))
+                
+                // Calculate target camera position along Moon-Earth line
+                const targetCameraPosition = earthPos.clone().add(directionToEarth.clone().multiplyScalar(-zoomDistance))
+                
+                // Smoothly interpolate camera position (smooth following)
+                if (!isNaN(targetCameraPosition.x) && !isNaN(targetCameraPosition.y) && !isNaN(targetCameraPosition.z)) {
+                    camera.position.lerp(targetCameraPosition, 0.15) // Smooth interpolation factor
+                    camera.lookAt(earthPos)
+                }
             }
+        } else if (currentCameraMode === 'earthFacingMoon') {
+            // Mode 1: Camera above Earth looking at Moon - update to follow Moon orbit
+            const moonPos = moon.position.clone()
+            const earthPos = new THREE.Vector3(0, 0, 0)
+            const direction = moonPos.clone().sub(earthPos).normalize()
+            const cameraOffset = direction.multiplyScalar(-8)
+            cameraOffset.y += 3
+            const targetPos = earthPos.clone().add(cameraOffset)
+            const lookAtPoint = earthPos.clone().add(moonPos).multiplyScalar(0.3)
             
-            // Clamp zoom distance to reasonable range (50% to 200% of base distance)
-            const zoomDistance = Math.max(baseDistance * 0.5, Math.min(baseDistance * 2.0, currentDistance))
-            
-            // Calculate target camera position along Moon-Earth line
-            const targetCameraPosition = earthPos.clone().add(directionToEarth.clone().multiplyScalar(-zoomDistance))
-            
-            // Smoothly interpolate camera position (smooth following)
-            if (!isNaN(targetCameraPosition.x) && !isNaN(targetCameraPosition.y) && !isNaN(targetCameraPosition.z)) {
-                camera.position.lerp(targetCameraPosition, 0.15) // Smooth interpolation factor
-                camera.lookAt(earthPos)
-            }
+            camera.position.lerp(targetPos, 0.1)
+            controls.target.lerp(lookAtPoint, 0.1)
+            camera.lookAt(controls.target)
         }
+        // Mode 0 (free): Let OrbitControls handle everything
     }
     
     // Camera animation (for preset switching)
