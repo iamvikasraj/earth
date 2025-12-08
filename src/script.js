@@ -289,7 +289,8 @@ moonTexture.anisotropy = 16
 
 // Realistic Moon scale: Moon radius is ~27% of Earth's radius
 // Real Earth radius: ~6,371 km, Moon radius: ~1,737 km
-const moonGeometry = new THREE.SphereGeometry(0.2727, 64, 64) // 1,737 / 6,371 ≈ 0.2727
+const MOON_RADIUS = 0.2727 // 1,737 / 6,371 ≈ 0.2727
+const moonGeometry = new THREE.SphereGeometry(MOON_RADIUS, 64, 64)
 const moonMaterial = new THREE.MeshStandardMaterial({
     map: moonTexture,
     roughness: 0.9,
@@ -396,11 +397,12 @@ const sizes = {
     height: window.innerHeight
 }
 
-// Perspective camera - positioned to show half Earth diameter (side view)
-// FOV adjusted to show half Earth diameter (Earth radius = 1, so half diameter = 1 unit visible)
-const camera = new THREE.PerspectiveCamera(45, sizes.width / sizes.height, 0.1, 200) // Reduced FOV for tighter framing
-camera.position.set(3, 0, 0) // To the right, directly facing Earth's side (half view)
-camera.lookAt(0, 0, 0) // Look at Earth center
+// Perspective camera - positioned on Moon's surface looking at Earth
+const camera = new THREE.PerspectiveCamera(60, sizes.width / sizes.height, 0.1, 200) // Wider FOV for surface view
+// Initial position will be set in first tick to ensure Moon position is correct
+// For now, set a safe initial position
+camera.position.set(0, 0, 15) // Temporary position, will be updated in tick
+camera.lookAt(0, 0, 0) // Look at Earth
 scene.add(camera)
 
 /**
@@ -480,9 +482,11 @@ controls.touches = {
 }
 
 // Enhanced touch controls
-controls.enablePan = true
+// Disable pan and rotate since camera is locked to Moon's surface
+// Zoom (dolly) is still enabled to allow zooming in/out
+controls.enablePan = false
 controls.enableZoom = true
-controls.enableRotate = true
+controls.enableRotate = false
 
 // Smooth zoom settings optimized for touch
 controls.zoomSpeed = 1.2
@@ -711,15 +715,50 @@ const tick = () => {
     // Moon's orbit is slightly inclined (~5 degrees), but we'll keep it simple
     moon.position.y = Math.sin(moonOrbitAngle * 0.5) * 2 // Slight vertical variation
     
-    // Update camera presets if in preset mode (camera follows Moon/Earth)
-    // Only update if not animating
+    // Position camera on Moon's surface looking at Earth
+    // Skip camera preset updates - we want to maintain Moon surface view
     if (!cameraAnimation.isAnimating) {
-        if (currentCameraMode === 'earthFacingMoon') {
-            cameraPresets.earthFacingMoon()
-        } else if (currentCameraMode === 'moonFacingEarth') {
-            cameraPresets.moonFacingEarth()
+        const moonPos = moon.position.clone()
+        const earthPos = new THREE.Vector3(0, 0, 0)
+        
+        // Calculate direction from Moon to Earth
+        const moonToEarth = earthPos.clone().sub(moonPos)
+        const distanceMoonToEarth = moonToEarth.length()
+        
+        // Only proceed if Moon position is valid
+        if (distanceMoonToEarth > 0.1 && !isNaN(distanceMoonToEarth)) {
+            const directionToEarth = moonToEarth.normalize()
+            
+            // Set controls target to Earth
+            controls.target.copy(earthPos)
+            
+            // Base distance from Earth to Moon surface (camera sits just above Moon's surface)
+            const baseDistance = MOON_DISTANCE - MOON_RADIUS - 0.1
+            
+            // Get current distance for zoom (preserve user zoom input)
+            let currentDistance = camera.position.distanceTo(controls.target)
+            if (currentDistance < 1 || currentDistance > 50 || isNaN(currentDistance)) {
+                // If distance is invalid, reset to base
+                currentDistance = baseDistance
+            }
+            
+            // Clamp zoom distance to reasonable range (50% to 200% of base distance)
+            const zoomDistance = Math.max(baseDistance * 0.5, Math.min(baseDistance * 2.0, currentDistance))
+            
+            // Position camera along Moon-Earth line at the calculated distance from Earth
+            // Camera sits on Moon's surface looking at Earth
+            // Direction from Moon to Earth, so camera is at: Earth - direction * distance
+            const cameraPosition = earthPos.clone().add(directionToEarth.clone().multiplyScalar(-zoomDistance))
+            
+            // Ensure position is valid
+            if (!isNaN(cameraPosition.x) && !isNaN(cameraPosition.y) && !isNaN(cameraPosition.z)) {
+                camera.position.copy(cameraPosition)
+                camera.lookAt(earthPos)
+            }
         }
     }
+    
+    controls.update()
     
     // Sun rotation (simple orbit)
     const sunAngle = adjustedTime * EARTH_ROTATION_SPEED
