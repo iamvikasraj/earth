@@ -21,9 +21,179 @@ const ambientLight = new THREE.AmbientLight(0x404040, 0.4)
 scene.add(ambientLight)
 
 /**
+ * Loading Manager and Loader UI
+ */
+const loadingManager = new THREE.LoadingManager()
+
+// Create loading overlay with modern design
+const loaderOverlay = document.createElement('div')
+loaderOverlay.id = 'loader-overlay'
+loaderOverlay.style.position = 'fixed'
+loaderOverlay.style.top = '0'
+loaderOverlay.style.left = '0'
+loaderOverlay.style.width = '100%'
+loaderOverlay.style.height = '100%'
+loaderOverlay.style.backgroundColor = '#0a0a0a'
+loaderOverlay.style.display = 'flex'
+loaderOverlay.style.flexDirection = 'column'
+loaderOverlay.style.justifyContent = 'center'
+loaderOverlay.style.alignItems = 'center'
+loaderOverlay.style.zIndex = '10000'
+loaderOverlay.style.fontFamily = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+
+// Add loader styles
+const style = document.createElement('style')
+style.textContent = `
+    @keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.5; }
+    }
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(10px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    .loader-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #ffffff;
+        display: inline-block;
+        margin: 0 4px;
+        animation: pulse 1.4s ease-in-out infinite;
+    }
+    .loader-dot:nth-child(1) { animation-delay: 0s; }
+    .loader-dot:nth-child(2) { animation-delay: 0.2s; }
+    .loader-dot:nth-child(3) { animation-delay: 0.4s; }
+`
+document.head.appendChild(style)
+
+const loaderContainer = document.createElement('div')
+loaderContainer.style.textAlign = 'center'
+loaderContainer.style.animation = 'fadeIn 0.5s ease-out'
+
+const loaderDots = document.createElement('div')
+loaderDots.style.marginBottom = '24px'
+loaderDots.innerHTML = `
+    <span class="loader-dot"></span>
+    <span class="loader-dot"></span>
+    <span class="loader-dot"></span>
+`
+
+const loaderText = document.createElement('div')
+loaderText.id = 'loader-text'
+loaderText.textContent = 'Loading Earth'
+loaderText.style.fontSize = '16px'
+loaderText.style.fontWeight = '300'
+loaderText.style.color = '#ffffff'
+loaderText.style.letterSpacing = '2px'
+loaderText.style.marginBottom = '16px'
+loaderText.style.textTransform = 'uppercase'
+
+const loaderProgress = document.createElement('div')
+loaderProgress.id = 'loader-progress'
+loaderProgress.style.fontSize = '12px'
+loaderProgress.style.color = '#888888'
+loaderProgress.style.fontWeight = '300'
+loaderProgress.style.letterSpacing = '1px'
+loaderProgress.textContent = '0%'
+
+loaderContainer.appendChild(loaderDots)
+loaderContainer.appendChild(loaderText)
+loaderContainer.appendChild(loaderProgress)
+loaderOverlay.appendChild(loaderContainer)
+document.body.appendChild(loaderOverlay)
+
+// Loading manager callbacks
+let loadedItems = 0
+let totalItems = 0
+
+loadingManager.onStart = (url, itemsLoaded, itemsTotal) => {
+    totalItems = itemsTotal
+    loaderText.textContent = 'Loading textures...'
+    loaderProgress.textContent = `0% (0/${itemsTotal})`
+}
+
+// Track scene readiness
+let sceneReady = false
+
+loadingManager.onLoad = () => {
+    // Wait a bit to ensure everything is initialized
+    setTimeout(() => {
+        // Check if scene is ready
+        const checkSceneReady = () => {
+            // Verify essential components are ready
+            const texturesReady = loadedItems >= totalItems && totalItems > 0
+            
+            // Check if renderer exists (will be defined later in code)
+            let rendererReady = false
+            try {
+                rendererReady = typeof renderer !== 'undefined' && renderer && renderer.domElement
+            } catch (e) {
+                rendererReady = false
+            }
+            
+            // Check if camera exists (will be defined later in code)
+            let cameraReady = false
+            try {
+                cameraReady = typeof camera !== 'undefined' && camera && camera.position
+            } catch (e) {
+                cameraReady = false
+            }
+            
+            // Check if scene has objects
+            const sceneHasObjects = scene && scene.children.length > 0
+            
+            if (texturesReady && rendererReady && cameraReady && sceneHasObjects) {
+                sceneReady = true // Set the global flag
+                loaderText.textContent = 'Ready!'
+                loaderProgress.textContent = '100%'
+                
+                // Hide loader with fade out
+                setTimeout(() => {
+                    loaderOverlay.style.transition = 'opacity 0.5s ease-out'
+                    loaderOverlay.style.opacity = '0'
+                    setTimeout(() => {
+                        loaderOverlay.style.display = 'none'
+                    }, 500)
+                }, 300)
+            } else {
+                // Retry after a short delay
+                setTimeout(checkSceneReady, 100)
+            }
+        }
+        
+        checkSceneReady()
+    }, 200)
+}
+
+loadingManager.onProgress = (url, itemsLoaded, itemsTotal) => {
+    loadedItems = itemsLoaded
+    totalItems = itemsTotal
+    const percent = Math.round((itemsLoaded / itemsTotal) * 100)
+    loaderProgress.textContent = `${percent}% (${itemsLoaded}/${itemsTotal})`
+    
+    // Update text based on what's loading
+    if (url.includes('milky_way') || url.includes('stars')) {
+        loaderText.textContent = 'Loading starfield...'
+    } else if (url.includes('earth_daymap') || url.includes('earth')) {
+        loaderText.textContent = 'Loading Earth textures...'
+    } else if (url.includes('clouds')) {
+        loaderText.textContent = 'Loading cloud layer...'
+    } else if (url.includes('lroc') || url.includes('moon')) {
+        loaderText.textContent = 'Loading Moon...'
+    }
+}
+
+loadingManager.onError = (url) => {
+    console.error('Error loading:', url)
+    loaderText.textContent = 'Error loading resources'
+    loaderText.style.color = '#ff6b6b'
+}
+
+/**
  * Textures
  */
-const textureLoader = new THREE.TextureLoader()
+const textureLoader = new THREE.TextureLoader(loadingManager)
 
 const milkyWayTexture = textureLoader.load(
     '/8k_stars_milky_way.jpg',
@@ -82,16 +252,24 @@ const mesh = new THREE.Mesh(geometry, material)
 scene.add(mesh)
 
 /**
- * Clouds
+ * Clouds - Realistic cloud layer
  */
-const cloudsGeometry = new THREE.SphereGeometry(1.01, 128, 64)
+const cloudsGeometry = new THREE.SphereGeometry(1.005, 128, 64) // Slightly closer to Earth surface
 const cloudsMaterial = new THREE.MeshStandardMaterial({
     map: earthCloudsTexture,
     transparent: true,
-    opacity: 0.35,
-    alphaTest: 0.05,
-    depthWrite: false,
+    opacity: 0.6, // Increased opacity for more visible clouds
+    alphaTest: 0.02, // Lower threshold for smoother edges
+    depthWrite: false, // Important for proper transparency
     side: THREE.DoubleSide,
+    blending: THREE.NormalBlending, // Natural blending
+    // Add subtle emissive properties to make clouds catch sunlight
+    emissive: 0xffffff,
+    emissiveMap: earthCloudsTexture,
+    emissiveIntensity: 0.15, // Subtle glow on sunlit side
+    // Make clouds respond to lighting naturally
+    roughness: 0.9,
+    metalness: 0.0,
 })
 const cloudsMesh = new THREE.Mesh(cloudsGeometry, cloudsMaterial)
 scene.add(cloudsMesh)
@@ -121,8 +299,35 @@ const moon = new THREE.Mesh(moonGeometry, moonMaterial)
 // Earth-Moon distance: Using a closer distance for better visualization
 // Real distance is ~60.3 Earth radii, but we'll use 12 for better visibility
 const MOON_DISTANCE = 12 // Earth-Moon distance in Earth radii (reduced for visibility)
-moon.position.set(MOON_DISTANCE, 0, 0) // Start to the right of Earth
+// Position Moon in upper left to match the image layout
+moon.position.set(-MOON_DISTANCE * 0.7, MOON_DISTANCE * 0.5, MOON_DISTANCE * 0.3) // Upper left position
 scene.add(moon)
+
+/**
+ * Moon Orbit Trail
+ */
+const orbitTrailPoints = []
+const orbitTrailGeometry = new THREE.BufferGeometry()
+const orbitTrailMaterial = new THREE.LineBasicMaterial({
+    color: 0x888888,
+    transparent: true,
+    opacity: 0.3,
+    linewidth: 1
+})
+const orbitTrail = new THREE.Line(orbitTrailGeometry, orbitTrailMaterial)
+scene.add(orbitTrail)
+
+// Initialize orbit trail with points (now that MOON_DISTANCE is defined)
+const TRAIL_POINTS = 100
+for (let i = 0; i < TRAIL_POINTS; i++) {
+    const angle = (i / TRAIL_POINTS) * Math.PI * 2
+    orbitTrailPoints.push(
+        Math.cos(angle) * MOON_DISTANCE,
+        Math.sin(angle * 0.5) * 2, // Vertical variation
+        Math.sin(angle) * MOON_DISTANCE
+    )
+}
+orbitTrailGeometry.setAttribute('position', new THREE.Float32BufferAttribute(orbitTrailPoints, 3))
 
 /**
  * Camera
@@ -132,10 +337,11 @@ const sizes = {
     height: window.innerHeight
 }
 
-// Perspective camera
-const camera = new THREE.PerspectiveCamera(75, sizes.width / sizes.height, 0.1, 200)
-camera.position.set(-3, 1.5, 2)
-camera.lookAt(0, 0, 0)
+// Perspective camera - positioned to show half Earth diameter (side view)
+// FOV adjusted to show half Earth diameter (Earth radius = 1, so half diameter = 1 unit visible)
+const camera = new THREE.PerspectiveCamera(45, sizes.width / sizes.height, 0.1, 200) // Reduced FOV for tighter framing
+camera.position.set(3, 0, 0) // To the right, directly facing Earth's side (half view)
+camera.lookAt(0, 0, 0) // Look at Earth center
 scene.add(camera)
 
 /**
@@ -191,8 +397,8 @@ const cameraPresets = {
         animateCamera(targetPos, lookAtPoint)
     },
     free: () => {
-        // Reset to default view
-        const targetPos = new THREE.Vector3(-3, 1.5, 2)
+        // Reset to default view - showing half Earth diameter (side view)
+        const targetPos = new THREE.Vector3(3, 0, 0)
         const lookAtPoint = new THREE.Vector3(0, 0, 0)
         animateCamera(targetPos, lookAtPoint)
     }
@@ -206,6 +412,37 @@ controls.enableDamping = true
 controls.minDistance = 1.10
 controls.maxDistance = 100 // Increased for Moon distance
 controls.target.set(0, 0, 0)
+
+// Enable touch/pinch zoom for mobile devices
+// ONE finger: rotate, TWO fingers: pinch to zoom and pan
+controls.touches = {
+    ONE: THREE.TOUCH.ROTATE,
+    TWO: THREE.TOUCH.DOLLY_PAN // Pinch to zoom, pan with two fingers
+}
+
+// Enhanced touch controls
+controls.enablePan = true
+controls.enableZoom = true
+controls.enableRotate = true
+
+// Smooth zoom settings optimized for touch
+controls.zoomSpeed = 1.2
+controls.panSpeed = 0.8
+controls.rotateSpeed = 0.5
+
+// Prevent default touch behaviors that might interfere
+canvas.addEventListener('touchstart', (e) => {
+    if (e.touches.length > 1) {
+        e.preventDefault() // Prevent page zoom on pinch
+    }
+}, { passive: false })
+
+canvas.addEventListener('touchmove', (e) => {
+    if (e.touches.length > 1) {
+        e.preventDefault() // Prevent page scroll on pinch
+    }
+}, { passive: false })
+
 controls.update()
 
 /**
@@ -213,7 +450,7 @@ controls.update()
  */
 let currentCameraMode = 'free' // 'free', 'earthFacingMoon', 'moonFacingEarth'
 
-// Keyboard controls for camera switching
+// Keyboard controls for camera switching, time speed, and Earth rotation
 window.addEventListener('keydown', (event) => {
     if (event.key === '1') {
         currentCameraMode = 'earthFacingMoon'
@@ -224,6 +461,60 @@ window.addEventListener('keydown', (event) => {
     } else if (event.key === '0') {
         currentCameraMode = 'free'
         cameraPresets.free()
+    } else if (event.key === '+' || event.key === '=') {
+        timeSpeedMultiplier = Math.min(timeSpeedMultiplier * 1.5, 100)
+        event.preventDefault()
+    } else if (event.key === '-' || event.key === '_') {
+        timeSpeedMultiplier = Math.max(timeSpeedMultiplier / 1.5, 0.01)
+        event.preventDefault()
+    } else if (event.key === 'r' || event.key === 'R') {
+        timeSpeedMultiplier = 1.0 // Reset to real-time
+    } else if (event.key === 'ArrowUp') {
+        // Alt+Arrow: Reset rotation
+        if (event.altKey) {
+            earthTargetRotationX = 0
+            earthTargetRotationY = 0
+        } else {
+            // Shift/Ctrl/Cmd+Arrow: Fast rotation, normal Arrow: Regular rotation
+            const rotationSpeed = event.shiftKey || event.ctrlKey || event.metaKey 
+                ? EARTH_ROTATION_SPEED_FAST 
+                : EARTH_ROTATION_SPEED_MANUAL
+            earthTargetRotationX += rotationSpeed // Rotate Earth up (update target)
+        }
+        event.preventDefault()
+    } else if (event.key === 'ArrowDown') {
+        if (event.altKey) {
+            earthTargetRotationX = 0
+            earthTargetRotationY = 0
+        } else {
+            const rotationSpeed = event.shiftKey || event.ctrlKey || event.metaKey 
+                ? EARTH_ROTATION_SPEED_FAST 
+                : EARTH_ROTATION_SPEED_MANUAL
+            earthTargetRotationX -= rotationSpeed // Rotate Earth down (update target)
+        }
+        event.preventDefault()
+    } else if (event.key === 'ArrowLeft') {
+        if (event.altKey) {
+            earthTargetRotationX = 0
+            earthTargetRotationY = 0
+        } else {
+            const rotationSpeed = event.shiftKey || event.ctrlKey || event.metaKey 
+                ? EARTH_ROTATION_SPEED_FAST 
+                : EARTH_ROTATION_SPEED_MANUAL
+            earthTargetRotationY -= rotationSpeed // Rotate Earth left (update target)
+        }
+        event.preventDefault()
+    } else if (event.key === 'ArrowRight') {
+        if (event.altKey) {
+            earthTargetRotationX = 0
+            earthTargetRotationY = 0
+        } else {
+            const rotationSpeed = event.shiftKey || event.ctrlKey || event.metaKey 
+                ? EARTH_ROTATION_SPEED_FAST 
+                : EARTH_ROTATION_SPEED_MANUAL
+            earthTargetRotationY += rotationSpeed // Rotate Earth right (update target)
+        }
+        event.preventDefault()
     }
 })
 
@@ -241,10 +532,62 @@ renderer.toneMapping = THREE.ACESFilmicToneMapping
 renderer.toneMappingExposure = 1.2
 
 /**
+ * Interactive Elements - Time Controls
+ */
+let timeSpeedMultiplier = 1.0 // 1.0 = real-time, 2.0 = 2x speed, etc.
+
+/**
+ * Raycaster for Click Detection
+ */
+const raycaster = new THREE.Raycaster()
+const mouse = new THREE.Vector2()
+
+// Click handler
+canvas.addEventListener('click', (event) => {
+    // Calculate mouse position in normalized device coordinates
+    mouse.x = (event.clientX / window.innerWidth) * 2 - 1
+    mouse.y = -(event.clientY / window.innerHeight) * 2 + 1
+    
+    // Update raycaster
+    raycaster.setFromCamera(mouse, camera)
+    
+    // Check intersections
+    const intersects = raycaster.intersectObjects([mesh, moon])
+    
+    if (intersects.length > 0) {
+        const clickedObject = intersects[0].object
+        
+        if (clickedObject === mesh) {
+            // Clicked Earth - focus on Earth
+            const targetPos = camera.position.clone().normalize().multiplyScalar(3)
+            targetPos.y += 1
+            animateCamera(targetPos, new THREE.Vector3(0, 0, 0))
+            currentCameraMode = 'free'
+        } else if (clickedObject === moon) {
+            // Clicked Moon - focus on Moon
+            const moonPos = moon.position.clone()
+            const direction = moonPos.clone().normalize()
+            const targetPos = moonPos.clone().add(direction.multiplyScalar(-2))
+            animateCamera(targetPos, moonPos)
+            currentCameraMode = 'free'
+        }
+    }
+})
+
+/**
  * Animation
  */
 const clock = new THREE.Clock()
 const EARTH_ROTATION_SPEED = (2 * Math.PI) / 86400 // One rotation per 24 hours
+
+// Manual Earth rotation offsets (controlled by arrow keys) with easing
+let earthManualRotationX = 0 // Current rotation X (pitch)
+let earthManualRotationY = 0 // Current rotation Y (yaw)
+let earthTargetRotationX = 0 // Target rotation X
+let earthTargetRotationY = 0 // Target rotation Y
+const EARTH_ROTATION_SPEED_MANUAL = 0.02 // Speed of manual rotation per key press
+const EARTH_ROTATION_SPEED_FAST = 0.05 // Faster rotation speed for modifier combinations
+const EARTH_ROTATION_EASE_SPEED = 0.1 // Easing speed (0-1, higher = faster)
 
 const tick = () => {
     const elapsedTime = clock.getElapsedTime()
@@ -285,14 +628,24 @@ const tick = () => {
         controls.update()
     }
     
-    // Earth rotation
-    mesh.rotation.y = elapsedTime * EARTH_ROTATION_SPEED
-    cloudsMesh.rotation.y = elapsedTime * EARTH_ROTATION_SPEED * 1.1
+    // Apply time speed multiplier
+    const adjustedTime = elapsedTime * timeSpeedMultiplier
+    
+    // Smooth easing for manual Earth rotation
+    earthManualRotationX += (earthTargetRotationX - earthManualRotationX) * EARTH_ROTATION_EASE_SPEED
+    earthManualRotationY += (earthTargetRotationY - earthManualRotationY) * EARTH_ROTATION_EASE_SPEED
+    
+    // Earth rotation (automatic + manual with easing)
+    mesh.rotation.x = earthManualRotationX // Manual pitch rotation (up/down arrows)
+    mesh.rotation.y = adjustedTime * EARTH_ROTATION_SPEED + earthManualRotationY // Automatic + manual yaw rotation (left/right arrows)
+    // Apply same rotations to clouds
+    cloudsMesh.rotation.x = earthManualRotationX
+    cloudsMesh.rotation.y = adjustedTime * EARTH_ROTATION_SPEED * 1.1 + earthManualRotationY
     
     // Realistic Moon orbit: ~27.3 days = 2,358,720 seconds for one orbit
     const MOON_ORBIT_PERIOD = 2358720 // seconds (27.3 days)
     const MOON_ORBIT_SPEED = (2 * Math.PI) / MOON_ORBIT_PERIOD
-    const moonOrbitAngle = elapsedTime * MOON_ORBIT_SPEED
+    const moonOrbitAngle = adjustedTime * MOON_ORBIT_SPEED
     // Use realistic Earth-Moon distance (defined above)
     moon.position.x = Math.cos(moonOrbitAngle) * MOON_DISTANCE
     moon.position.z = Math.sin(moonOrbitAngle) * MOON_DISTANCE
@@ -310,11 +663,15 @@ const tick = () => {
     }
     
     // Sun rotation (simple orbit)
-    const sunAngle = elapsedTime * EARTH_ROTATION_SPEED
+    const sunAngle = adjustedTime * EARTH_ROTATION_SPEED
     directionalLight.position.x = Math.cos(sunAngle) * 10
     directionalLight.position.z = Math.sin(sunAngle) * 10
     
+    // Update orbit trail visibility
+    orbitTrail.visible = true
+    
     renderer.render(scene, camera)
+    
     window.requestAnimationFrame(tick)
 }
 
@@ -334,3 +691,4 @@ window.addEventListener('resize', () => {
     renderer.setSize(sizes.width, sizes.height)
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
 })
+
