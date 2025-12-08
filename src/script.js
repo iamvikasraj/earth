@@ -648,9 +648,9 @@ const tick = () => {
                 // Calculate a point on Moon's surface in the direction toward Earth
                 const moonSurfacePoint = moonPos.clone().add(directionToEarth.clone().multiplyScalar(MOON_RADIUS + 0.1))
                 
-                // Position camera slightly behind Moon surface point so Moon is visible
-                // Offset camera position slightly to see Moon's curvature
-                const cameraOffset = directionToEarth.clone().multiplyScalar(-0.2) // Move slightly back from surface
+                // Position camera further back from Moon surface so Moon is more visible
+                // Offset camera position to see Moon's curvature and surface
+                const cameraOffset = directionToEarth.clone().multiplyScalar(-0.5) // Move further back from surface
                 const targetCameraPosition = moonSurfacePoint.clone().add(cameraOffset)
                 
                 // Set controls target to Earth (smoothly)
