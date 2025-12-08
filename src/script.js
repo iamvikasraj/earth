@@ -584,41 +584,6 @@ const tick = () => {
     const elapsedTime = clock.getElapsedTime()
     const currentTime = performance.now()
     
-    // Camera animation
-    if (cameraAnimation.isAnimating) {
-        const elapsed = currentTime - cameraAnimation.startTime
-        const progress = Math.min(elapsed / cameraAnimation.duration, 1)
-        
-        // Smooth easing function (ease-in-out)
-        const easeProgress = progress < 0.5
-            ? 2 * progress * progress
-            : 1 - Math.pow(-2 * progress + 2, 2) / 2
-        
-        // Interpolate camera position
-        camera.position.lerpVectors(
-            cameraAnimation.startPosition,
-            cameraAnimation.targetPosition,
-            easeProgress
-        )
-        
-        // Interpolate camera target
-        controls.target.lerpVectors(
-            cameraAnimation.startTarget,
-            cameraAnimation.targetTarget,
-            easeProgress
-        )
-        
-        camera.lookAt(controls.target)
-        controls.update()
-        
-        // End animation
-        if (progress >= 1) {
-            cameraAnimation.isAnimating = false
-        }
-    } else {
-        controls.update()
-    }
-    
     // Apply time speed multiplier
     const adjustedTime = elapsedTime * timeSpeedMultiplier
     
@@ -643,8 +608,7 @@ const tick = () => {
     // Moon's orbit is slightly inclined (~5 degrees), but we'll keep it simple
     moon.position.y = Math.sin(moonOrbitAngle * 0.5) * 2 // Slight vertical variation
     
-    // Position camera on Moon's surface looking at Earth
-    // Skip camera preset updates - we want to maintain Moon surface view
+    // Smooth camera positioning on Moon's surface looking at Earth
     if (!cameraAnimation.isAnimating) {
         const moonPos = moon.position.clone()
         const earthPos = new THREE.Vector3(0, 0, 0)
@@ -657,8 +621,8 @@ const tick = () => {
         if (distanceMoonToEarth > 0.1 && !isNaN(distanceMoonToEarth)) {
             const directionToEarth = moonToEarth.normalize()
             
-            // Set controls target to Earth
-            controls.target.copy(earthPos)
+            // Set controls target to Earth (smoothly)
+            controls.target.lerp(earthPos, 0.1)
             
             // Base distance from Earth to Moon surface (camera sits just above Moon's surface)
             const baseDistance = MOON_DISTANCE - MOON_RADIUS - 0.1
@@ -673,19 +637,50 @@ const tick = () => {
             // Clamp zoom distance to reasonable range (50% to 200% of base distance)
             const zoomDistance = Math.max(baseDistance * 0.5, Math.min(baseDistance * 2.0, currentDistance))
             
-            // Position camera along Moon-Earth line at the calculated distance from Earth
-            // Camera sits on Moon's surface looking at Earth
-            // Direction from Moon to Earth, so camera is at: Earth - direction * distance
-            const cameraPosition = earthPos.clone().add(directionToEarth.clone().multiplyScalar(-zoomDistance))
+            // Calculate target camera position along Moon-Earth line
+            const targetCameraPosition = earthPos.clone().add(directionToEarth.clone().multiplyScalar(-zoomDistance))
             
-            // Ensure position is valid
-            if (!isNaN(cameraPosition.x) && !isNaN(cameraPosition.y) && !isNaN(cameraPosition.z)) {
-                camera.position.copy(cameraPosition)
+            // Smoothly interpolate camera position (smooth following)
+            if (!isNaN(targetCameraPosition.x) && !isNaN(targetCameraPosition.y) && !isNaN(targetCameraPosition.z)) {
+                camera.position.lerp(targetCameraPosition, 0.15) // Smooth interpolation factor
                 camera.lookAt(earthPos)
             }
         }
     }
     
+    // Camera animation (for preset switching)
+    if (cameraAnimation.isAnimating) {
+        const elapsed = currentTime - cameraAnimation.startTime
+        const progress = Math.min(elapsed / cameraAnimation.duration, 1)
+        
+        // Smooth easing function (ease-in-out)
+        const easeProgress = progress < 0.5
+            ? 2 * progress * progress
+            : 1 - Math.pow(-2 * progress + 2, 2) / 2
+        
+        // Interpolate camera position
+        camera.position.lerpVectors(
+            cameraAnimation.startPosition,
+            cameraAnimation.targetPosition,
+            easeProgress
+        )
+        
+        // Interpolate camera target
+        controls.target.lerpVectors(
+            cameraAnimation.startTarget,
+            cameraAnimation.targetTarget,
+            easeProgress
+        )
+        
+        camera.lookAt(controls.target)
+        
+        // End animation
+        if (progress >= 1) {
+            cameraAnimation.isAnimating = false
+        }
+    }
+    
+    // Update OrbitControls (only once per frame)
     controls.update()
     
     // Sun rotation (simple orbit)
