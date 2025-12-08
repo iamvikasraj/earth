@@ -399,10 +399,22 @@ const sizes = {
 
 // Perspective camera - positioned on Moon's surface looking at Earth
 const camera = new THREE.PerspectiveCamera(60, sizes.width / sizes.height, 0.1, 200) // Wider FOV for surface view
-// Initial position will be set in first tick to ensure Moon position is correct
-// For now, set a safe initial position
-camera.position.set(0, 0, 15) // Temporary position, will be updated in tick
-camera.lookAt(0, 0, 0) // Look at Earth
+// Calculate initial position based on Moon's initial position
+const initialMoonPos = moon.position.clone() // Moon is already positioned above
+const initialEarthPos = new THREE.Vector3(0, 0, 0)
+const initialMoonToEarth = initialEarthPos.clone().sub(initialMoonPos)
+const initialDistance = initialMoonToEarth.length()
+if (initialDistance > 0.1) {
+    const initialDirection = initialMoonToEarth.normalize()
+    const initialBaseDistance = MOON_DISTANCE - MOON_RADIUS - 0.1
+    const initialCameraPos = initialEarthPos.clone().add(initialDirection.multiplyScalar(-initialBaseDistance))
+    camera.position.copy(initialCameraPos)
+    camera.lookAt(initialEarthPos)
+} else {
+    // Fallback: position camera at a safe distance
+    camera.position.set(0, 0, 12)
+    camera.lookAt(0, 0, 0)
+}
 scene.add(camera)
 
 /**
