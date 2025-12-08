@@ -304,6 +304,74 @@ moon.position.set(-MOON_DISTANCE * 0.7, MOON_DISTANCE * 0.5, MOON_DISTANCE * 0.3
 scene.add(moon)
 
 /**
+ * Shooting Stars
+ */
+const shootingStars = []
+const MAX_SHOOTING_STARS = 5
+const SHOOTING_STAR_SPAWN_INTERVAL = 3000 // Spawn a new star every 3 seconds
+let lastShootingStarSpawn = 0
+
+// Create a shooting star with trail
+function createShootingStar() {
+    const group = new THREE.Group()
+    
+    // Main star (bright point)
+    const starGeometry = new THREE.SphereGeometry(0.05, 8, 8)
+    const starMaterial = new THREE.MeshBasicMaterial({
+        color: 0xffffff,
+        emissive: 0xffffff,
+        emissiveIntensity: 2
+    })
+    const star = new THREE.Mesh(starGeometry, starMaterial)
+    group.add(star)
+    
+    // Trail (glowing line)
+    const trailLength = 0.8
+    const trailGeometry = new THREE.BufferGeometry()
+    const trailPositions = new Float32Array([
+        0, 0, 0,           // Start at star position
+        0, 0, -trailLength // End behind star
+    ])
+    trailGeometry.setAttribute('position', new THREE.BufferAttribute(trailPositions, 3))
+    
+    const trailMaterial = new THREE.LineBasicMaterial({
+        color: 0x88ccff,
+        transparent: true,
+        opacity: 0.8,
+        linewidth: 2
+    })
+    const trail = new THREE.Line(trailGeometry, trailMaterial)
+    group.add(trail)
+    
+    // Random starting position (far from Earth, random direction)
+    const distance = 30 + Math.random() * 20 // 30-50 units away
+    const theta = Math.random() * Math.PI * 2 // Random angle around
+    const phi = Math.random() * Math.PI // Random elevation
+    
+    group.position.set(
+        distance * Math.sin(phi) * Math.cos(theta),
+        distance * Math.cos(phi),
+        distance * Math.sin(phi) * Math.sin(theta)
+    )
+    
+    // Random velocity direction (toward Earth)
+    const targetDirection = new THREE.Vector3(0, 0, 0).sub(group.position).normalize()
+    const speed = 0.3 + Math.random() * 0.2 // Speed variation
+    group.userData.velocity = targetDirection.multiplyScalar(speed)
+    group.userData.lifetime = 0
+    group.userData.maxLifetime = 2000 + Math.random() * 1000 // 2-3 seconds
+    
+    return group
+}
+
+// Initialize some shooting stars
+for (let i = 0; i < MAX_SHOOTING_STARS; i++) {
+    const shootingStar = createShootingStar()
+    shootingStars.push(shootingStar)
+    scene.add(shootingStar)
+}
+
+/**
  * Camera
  */
 const sizes = {
@@ -640,6 +708,67 @@ const tick = () => {
     const sunAngle = adjustedTime * EARTH_ROTATION_SPEED
     directionalLight.position.x = Math.cos(sunAngle) * 10
     directionalLight.position.z = Math.sin(sunAngle) * 10
+    
+    // Update shooting stars
+    shootingStars.forEach((star, index) => {
+        star.userData.lifetime += 16 // ~60fps
+        
+        // Move star
+        star.position.add(star.userData.velocity)
+        
+        // Rotate trail to follow direction
+        if (star.children[1]) { // Trail is second child
+            const direction = star.userData.velocity.clone().normalize()
+            star.children[1].lookAt(star.position.clone().add(direction))
+        }
+        
+        // Fade out as it gets closer to Earth
+        const distanceToEarth = star.position.length()
+        const fadeStart = 5
+        if (distanceToEarth < fadeStart) {
+            const fade = distanceToEarth / fadeStart
+            star.children[0].material.opacity = fade
+            if (star.children[1]) {
+                star.children[1].material.opacity = fade * 0.8
+            }
+        }
+        
+        // Remove star if it's too close to Earth or lifetime expired
+        if (distanceToEarth < 2 || star.userData.lifetime > star.userData.maxLifetime) {
+            // Reset star to new random position
+            const newStar = createShootingStar()
+            star.position.copy(newStar.position)
+            star.userData.velocity.copy(newStar.userData.velocity)
+            star.userData.lifetime = 0
+            star.userData.maxLifetime = newStar.userData.maxLifetime
+            
+            // Reset opacity
+            star.children[0].material.opacity = 1
+            if (star.children[1]) {
+                star.children[1].material.opacity = 0.8
+            }
+        }
+    })
+    
+    // Spawn new shooting stars periodically
+    if (currentTime - lastShootingStarSpawn > SHOOTING_STAR_SPAWN_INTERVAL) {
+        lastShootingStarSpawn = currentTime
+        // Find a star that's far enough to replace
+        const farStar = shootingStars.find(star => star.position.length() > 25)
+        if (farStar) {
+            const newStar = createShootingStar()
+            farStar.position.copy(newStar.position)
+            farStar.userData.velocity.copy(newStar.userData.velocity)
+            farStar.userData.lifetime = 0
+            farStar.userData.maxLifetime = newStar.userData.maxLifetime
+            
+            // Reset opacity
+            farStar.children[0].material.opacity = 1
+            if (farStar.children[1]) {
+                farStar.children[1].material.opacity = 0.8
+            }
+        }
+    }
     
     renderer.render(scene, camera)
     
