@@ -304,32 +304,6 @@ moon.position.set(-MOON_DISTANCE * 0.7, MOON_DISTANCE * 0.5, MOON_DISTANCE * 0.3
 scene.add(moon)
 
 /**
- * Moon Orbit Trail
- */
-const orbitTrailPoints = []
-const orbitTrailGeometry = new THREE.BufferGeometry()
-const orbitTrailMaterial = new THREE.LineBasicMaterial({
-    color: 0x888888,
-    transparent: true,
-    opacity: 0.3,
-    linewidth: 1
-})
-const orbitTrail = new THREE.Line(orbitTrailGeometry, orbitTrailMaterial)
-scene.add(orbitTrail)
-
-// Initialize orbit trail with points (now that MOON_DISTANCE is defined)
-const TRAIL_POINTS = 100
-for (let i = 0; i < TRAIL_POINTS; i++) {
-    const angle = (i / TRAIL_POINTS) * Math.PI * 2
-    orbitTrailPoints.push(
-        Math.cos(angle) * MOON_DISTANCE,
-        Math.sin(angle * 0.5) * 2, // Vertical variation
-        Math.sin(angle) * MOON_DISTANCE
-    )
-}
-orbitTrailGeometry.setAttribute('position', new THREE.Float32BufferAttribute(orbitTrailPoints, 3))
-
-/**
  * Camera
  */
 const sizes = {
@@ -409,8 +383,8 @@ const cameraPresets = {
  */
 const controls = new OrbitControls(camera, canvas)
 controls.enableDamping = true
-controls.minDistance = 1.10
-controls.maxDistance = 100 // Increased for Moon distance
+controls.minDistance = 1.10 // Minimum zoom (closest to Earth)
+controls.maxDistance = 20 // Maximum zoom (farthest from Earth)
 controls.target.set(0, 0, 0)
 
 // Enable touch/pinch zoom for mobile devices
@@ -666,9 +640,6 @@ const tick = () => {
     const sunAngle = adjustedTime * EARTH_ROTATION_SPEED
     directionalLight.position.x = Math.cos(sunAngle) * 10
     directionalLight.position.z = Math.sin(sunAngle) * 10
-    
-    // Update orbit trail visibility
-    orbitTrail.visible = true
     
     renderer.render(scene, camera)
     
