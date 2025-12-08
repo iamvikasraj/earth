@@ -373,14 +373,17 @@ const cameraPresets = {
         animateCamera(targetPos, lookAtPoint)
     },
     moonFacingEarth: () => {
-        // Camera positioned on Moon's surface looking at Earth
+        // Camera positioned on Moon's surface looking at Earth, with Moon half visible
         const moonPos = moon.position.clone()
         const earthPos = new THREE.Vector3(0, 0, 0)
         const directionToEarth = earthPos.clone().sub(moonPos).normalize()
-        // Position camera on Moon's surface (just above it)
-        const baseDistance = MOON_DISTANCE - MOON_RADIUS - 0.1
+        // Position camera slightly behind Moon's surface so Moon is visible in foreground
+        // Camera sits just above Moon surface, offset slightly to see Moon's edge
+        const baseDistance = MOON_DISTANCE - MOON_RADIUS - 0.15
         const targetPos = earthPos.clone().add(directionToEarth.multiplyScalar(-baseDistance))
-        animateCamera(targetPos, earthPos)
+        // Look at Earth but slightly offset to see Moon in frame
+        const lookAtPoint = earthPos.clone()
+        animateCamera(targetPos, lookAtPoint)
     },
     free: () => {
         // Reset to default view - showing half Earth diameter (side view)
@@ -616,7 +619,7 @@ const tick = () => {
     // Apply camera mode-specific positioning
     if (!cameraAnimation.isAnimating) {
         if (currentCameraMode === 'moonFacingEarth') {
-            // Mode 2: Camera on Moon's surface looking at Earth
+            // Mode 2: Camera on Moon's surface looking at Earth, with Moon half visible
             const moonPos = moon.position.clone()
             const earthPos = new THREE.Vector3(0, 0, 0)
             
@@ -628,11 +631,8 @@ const tick = () => {
             if (distanceMoonToEarth > 0.1 && !isNaN(distanceMoonToEarth)) {
                 const directionToEarth = moonToEarth.normalize()
                 
-                // Set controls target to Earth (smoothly)
-                controls.target.lerp(earthPos, 0.1)
-                
                 // Base distance from Earth to Moon surface (camera sits just above Moon's surface)
-                const baseDistance = MOON_DISTANCE - MOON_RADIUS - 0.1
+                const baseDistance = MOON_DISTANCE - MOON_RADIUS - 0.15
                 
                 // Get current distance for zoom (preserve user zoom input)
                 let currentDistance = camera.position.distanceTo(controls.target)
@@ -644,12 +644,22 @@ const tick = () => {
                 // Clamp zoom distance to reasonable range (50% to 200% of base distance)
                 const zoomDistance = Math.max(baseDistance * 0.5, Math.min(baseDistance * 2.0, currentDistance))
                 
-                // Calculate target camera position along Moon-Earth line
-                const targetCameraPosition = earthPos.clone().add(directionToEarth.clone().multiplyScalar(-zoomDistance))
+                // Position camera on Moon's surface, slightly offset to see Moon's edge
+                // Calculate a point on Moon's surface in the direction toward Earth
+                const moonSurfacePoint = moonPos.clone().add(directionToEarth.clone().multiplyScalar(MOON_RADIUS + 0.1))
+                
+                // Position camera slightly behind Moon surface point so Moon is visible
+                // Offset camera position slightly to see Moon's curvature
+                const cameraOffset = directionToEarth.clone().multiplyScalar(-0.2) // Move slightly back from surface
+                const targetCameraPosition = moonSurfacePoint.clone().add(cameraOffset)
+                
+                // Set controls target to Earth (smoothly)
+                controls.target.lerp(earthPos, 0.1)
                 
                 // Smoothly interpolate camera position (smooth following)
                 if (!isNaN(targetCameraPosition.x) && !isNaN(targetCameraPosition.y) && !isNaN(targetCameraPosition.z)) {
                     camera.position.lerp(targetCameraPosition, 0.15) // Smooth interpolation factor
+                    // Look at Earth - Moon will be visible in foreground
                     camera.lookAt(earthPos)
                 }
             }
